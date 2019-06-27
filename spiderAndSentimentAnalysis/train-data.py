@@ -6,7 +6,7 @@ from snownlp import SnowNLP
 import matplotlib.pyplot as plt
 from snownlp import sentiment
 from snownlp.sentiment import Sentiment
-conn = pymysql.connect(host='39.108.159.175', user='root', password='0800', charset="utf8",use_unicode=False)  # 连接服务器
+conn = pymysql.connect(host='127.0.0.1', user='root', password='0800', charset="utf8",use_unicode=False)  # 连接服务器
 with conn:
     cur = conn.cursor()
     cur.execute("SELECT * FROM test.weibo WHERE weiboId < '%d'" % 6000000)

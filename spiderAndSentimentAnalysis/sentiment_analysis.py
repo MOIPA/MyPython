@@ -3,6 +3,7 @@ import pymysql
 from snownlp import SnowNLP
 import io
 import sys
+import datetime
 #改变标准输出的默认编码
 sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf8')
 
@@ -93,6 +94,7 @@ def processTextAndAnalysis():
     return operation.processData()
 
 def sentimentAnalysis(text):
+    pre = datetime.datetime.now()
     if text=='' or not text:
         return 0
     textArray = SnowNLP(text)
@@ -100,6 +102,8 @@ def sentimentAnalysis(text):
     for s in textArray.sentences:
         result+=SnowNLP(s).sentiments
         # print(s+' sentiment value：'+str(SnowNLP(s).sentiments))
+    now = datetime.datetime.now()
+    print(now-pre)
     return result/len(textArray.sentences) if len(textArray.sentences)!=0 else 0
 
 if __name__=='__main__':
