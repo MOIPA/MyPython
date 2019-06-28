@@ -30,6 +30,7 @@ DataBasePort = 3306
 DataBaseUser = 'root'
 DataBasePasswd = '0800'
 
+# Head
 header_posts = {
     'Host': host,
     'Referer': 'https://m.weibo.cn/u/2557129567?uid=2557129567&luicode=10000011&lfid=100103type%3D1%26q%3D%E5%8D%8E%E4%B8%BA',
@@ -45,13 +46,13 @@ header_comments = {
 s = requests.session()
 s.keep_alive = False
 
-# 输出数据到文件 改变了print函数的输出位置
 
-# output=sys.stdout
-# outputfile=open("D:\\OUTPUT.txt","a",encoding='utf-8')
-# sys.stdout=outputfile
-# type = sys.getfilesystemencoding()
-# sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='gb18030')
+# 映射情感值 -1~1
+def MappingSentimentValue(text):
+    value = sentimentAnalysis(text)
+    value -= 0.5
+    value *= 2
+    return value
 
 # 按页数抓取数据
 
@@ -158,7 +159,7 @@ class mysql_operation:
             "(type,theme,id,text,attitudes_count,comments_count,reposts_count,created_at,sentiment) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)"
         try:
             self.cursor.execute(sql, (type, theme, id, text, attitudes_count, comments_count,
-                                      reposts_count, formatTime(created_at), sentimentAnalysis(text)))
+                                      reposts_count, formatTime(created_at), MappingSentimentValue(text)))
             self.connect.commit()
             print('post insert succeed')
             return self.find_post_id(id)
@@ -170,7 +171,7 @@ class mysql_operation:
             '(post_id,created_at,text,like_count,user_id,screen_name,profile_url,description,gender,followers_count,sentiment) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)'
         try:
             self.cursor.execute(sql, (post_auto_id, formatTime(created_at), text, like_count, id,
-                                      screen_name, profile_url, description, gender, followers_count, sentimentAnalysis(text)))
+                                      screen_name, profile_url, description, gender, followers_count, MappingSentimentValue(text)))
             self.connect.commit()
             print('comment insert succeed')
         except Exception as e:
@@ -279,7 +280,7 @@ def processComments(mid, post_auto_id):
             print('get comments error', e.args)
 
 
-def startSpider(t_type, t_theme, t_date, t_module_id):
+def startSpider(t_type, t_theme, t_date, t_module_id, t_drop):
     TablePostPrefix = 'post_'
     TableCommentPrefix = 'comment_'
     type = t_type
@@ -293,7 +294,8 @@ def startSpider(t_type, t_theme, t_date, t_module_id):
     TablePostName = TablePostPrefix+str(module_id)
     TableCommentName = TableCommentPrefix+str(module_id)
     # create table by mid
-    createTable(module_id)
+    if int(t_drop) == 1:
+        createTable(module_id)
     # start fetching
     for page in range(1, 1000):
         jsonData = get_posts(page, theme+'+'+type)
