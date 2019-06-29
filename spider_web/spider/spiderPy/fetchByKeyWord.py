@@ -30,6 +30,8 @@ DataBasePort = 3306
 DataBaseUser = 'root'
 DataBasePasswd = '0800'
 
+STOP = False
+
 # Head
 header_posts = {
     'Host': host,
@@ -46,9 +48,20 @@ header_comments = {
 s = requests.session()
 s.keep_alive = False
 
+# 过滤沙雕网名
+
+
+def textFilter(text):
+    # m_name = re.match(r'\s*回复@.*:(.*)', text)
+    # if m_name:
+    #    text = m_name.group(1)
+    return re.sub(r'(回复)?@.*?:', '', text)
 
 # 映射情感值 -1~1
+
+
 def MappingSentimentValue(text):
+    text = textFilter(text)
     value = sentimentAnalysis(text)
     value -= 0.5
     value *= 2
@@ -90,13 +103,21 @@ def get_posts(page, topic):
 # 解析页面返回的json数据
 
 
-def parse_single_post(json):
-    if json == None:
+def parse_single_post(json_data):
+    if json_data == None:
         print('json none')
-        exit()
-    items = json.get('data').get('cards')
+        # exit()
+        global STOP
+        STOP = True
+    items = json_data.get('data').get('cards')
     for item in items:
-        item = item.get('card_group')[0].get('mblog')
+        try:
+            item = item.get('card_group')[0].get('mblog')
+        except:
+            print('no data searched in weibo')
+            # exit()
+            global STOP
+            STOP = True
         if item:
             data = {
                 'id': item.get('id'),
@@ -158,7 +179,7 @@ class mysql_operation:
         sql = "insert into "+TablePostName + \
             "(type,theme,id,text,attitudes_count,comments_count,reposts_count,created_at,sentiment) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)"
         try:
-            self.cursor.execute(sql, (type, theme, id, text, attitudes_count, comments_count,
+            self.cursor.execute(sql, (type, theme, id, textFilter(text), attitudes_count, comments_count,
                                       reposts_count, formatTime(created_at), MappingSentimentValue(text)))
             self.connect.commit()
             print('post insert succeed')
@@ -170,7 +191,8 @@ class mysql_operation:
         sql = 'insert into '+TableCommentName + \
             '(post_id,created_at,text,like_count,user_id,screen_name,profile_url,description,gender,followers_count,sentiment) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)'
         try:
-            self.cursor.execute(sql, (post_auto_id, formatTime(created_at), text, like_count, id,
+            self.cursor.execute(sql, (post_auto_id, formatTime(created_at),
+                textFilter(text), like_count, id,
                                       screen_name, profile_url, description, gender, followers_count, MappingSentimentValue(text)))
             self.connect.commit()
             print('comment insert succeed')
@@ -281,6 +303,7 @@ def processComments(mid, post_auto_id):
 
 
 def startSpider(t_type, t_theme, t_date, t_module_id, t_drop):
+    STOP = False
     TablePostPrefix = 'post_'
     TableCommentPrefix = 'comment_'
     type = t_type
@@ -298,6 +321,9 @@ def startSpider(t_type, t_theme, t_date, t_module_id, t_drop):
         createTable(module_id)
     # start fetching
     for page in range(1, 1000):
+        global STOP
+        if STOP:
+            return 
         jsonData = get_posts(page, theme+'+'+type)
         results = parse_single_post(jsonData)
         for result in results:

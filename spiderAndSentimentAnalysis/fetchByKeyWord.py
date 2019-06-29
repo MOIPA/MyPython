@@ -27,8 +27,12 @@ DataBaseName = 'weibo_huawei'
 DataBasePort = 3306
 DataBaseUser = 'root'
 DataBasePasswd = '0800'
-TablePostName = 'post_'
-TableCommentName = 'comment_'
+TablePostPrefix = 'post_'
+TableCommentPrefix = 'comment_'
+TablePostName = ''
+TableCommentName = ''
+
+STOP = False
 
 header_posts = {
     'Host': host,
@@ -70,6 +74,7 @@ def get_posts_old(page):
             return response.json()
     except requests.ConnectionError as e:
         print('抓取错误', e.args)
+        sys.stdout.flush()
 
 # 按页数搜索抓取数据
 
@@ -78,6 +83,7 @@ def get_posts(page, topic):
     url = base_url_posts + 'containerid=100103type' + \
         urllib.parse.quote(search_opt+topic)+'&page='+str(page)
     print('fetching post from url:'+url)
+    sys.stdout.flush()
     try:
         response = requests.get(url, headers=header_posts)
         if response.status_code == 200:
@@ -90,23 +96,30 @@ def get_posts(page, topic):
 
 
 def parse_single_post(json):
-    if json == None:
-        print('json none')
-        exit()
-    items = json.get('data').get('cards')
-    for item in items:
-        item = item.get('card_group')[0].get('mblog')
-        if item:
-            data = {
-                'id': item.get('id'),
-                'text': pq(item.get("text")).text(),  # 仅提取内容中的文本
-                'attitudes_count': item.get('attitudes_count'),
-                'comments_count': item.get('comments_count'),
-                'reposts_count': item.get('reposts_count'),
-                'created_at': item.get('created_at')
-            }
-            print(data)
-            yield data
+    global STOP
+    try:
+        if json == None:
+            print('json none')
+            sys.stdout.flush()
+            STOP = True
+            # exit()
+        items = json.get('data').get('cards')
+        for item in items:
+            item = item.get('card_group')[0].get('mblog')
+            if item:
+                data = {
+                    'id': item.get('id'),
+                    'text': pq(item.get("text")).text(),  # 仅提取内容中的文本
+                    'attitudes_count': item.get('attitudes_count'),
+                    'comments_count': item.get('comments_count'),
+                    'reposts_count': item.get('reposts_count'),
+                    'created_at': item.get('created_at')
+                }
+                print(data)
+                sys.stdout.flush()
+                yield data
+    except:
+        STOP = True
 
 # 定义一个类，将连接MySQL的操作写入其中
 
@@ -134,6 +147,7 @@ class mysql_operation:
             self.cursor.execute(dropSql, (module_id, module_id))
         except:
             print('no table no drop')
+            sys.stdout.flush()
         try:
             self.cursor.execute(createCommentSql, module_id)
             self.cursor.execute(createPostSql, module_id)
@@ -160,9 +174,11 @@ class mysql_operation:
                                       reposts_count, formatTime(created_at), sentimentAnalysis(text)))
             self.connect.commit()
             print('post insert succeed')
+            sys.stdout.flush()
             return self.find_post_id(id)
         except Exception as e:
             print('post insert failed', e.args)
+            sys.stdout.flush()
 
     def save_comments(self, post_auto_id, created_at, text, like_count, id, screen_name, profile_url, description, gender, followers_count):
         sql = 'insert into '+TableCommentName + \
@@ -172,8 +188,10 @@ class mysql_operation:
                                       screen_name, profile_url, description, gender, followers_count, sentimentAnalysis(text)))
             self.connect.commit()
             print('comment insert succeed')
+            sys.stdout.flush()
         except Exception as e:
             print('comment insert failed', e.args)
+            sys.stdout.flush()
 
 
 # 新建对象，然后将数据传入类中
@@ -206,6 +224,7 @@ def get_comments_by_page(mid, page):
     }
     url = base_url_comments + urlencode(params)
     print(url)
+    sys.stdout.flush()
     try:
         response = requests.get(url, headers=header_comments)
         if response.status_code == 200:
@@ -213,6 +232,7 @@ def get_comments_by_page(mid, page):
             return response.json()
     except requests.ConnectionError as e:
         print('fetch error', e.args)
+        sys.stdout.flush()
 
 # 解析页面返回的json评论数据
 
@@ -261,6 +281,7 @@ def processComments(mid, post_auto_id):
         max_page = first_page_json.get('data').get('max')
     except Exception as e:
         print('eror no comment fetched of '+mid)
+        sys.stdout.flush()
         return
 
     if max_page > 100:
@@ -276,28 +297,35 @@ def processComments(mid, post_auto_id):
                              result['user_profile'], result['user_description'], result['user_gender'], result['user_followers_count'])
         except Exception as e:
             print('get comments error', e.args)
+            sys.stdout.flush()
 
 
-if __name__ == '__main__':
-
+def startSpider(arg1, arg2, arg3, arg4):
     # arguments control
-    if len(sys.argv) != 5:
-        print('args error')
-        exit()
-    type = sys.argv[1]
-    theme = sys.argv[2]
-    date = sys.argv[3]
-    module_id = sys.argv[4]
-    TablePostName += module_id
-    TableCommentName += module_id
+    # if len(sys.argv) != 5:
+    #     print('args error')
+    #     exit()
+    type = arg1
+    theme = arg2
+    module_id = arg4
+    global TablePostName
+    global TableCommentName
+    TablePostName = TablePostPrefix+module_id
+    TableCommentName = TableCommentPrefix+module_id
     # create table by mid
-    createTable(module_id)
+    # createTable(module_id)
     # start fetching
+    global STOP
+    STOP = False
     for page in range(1, 1000):
-        jsonData = get_posts(page, theme+'+'+type)
+        if STOP == True:
+            return
+        #jsonData = get_posts(page, theme+'+'+type)
+        jsonData = get_posts(page, type+theme)
         results = parse_single_post(jsonData)
         for result in results:
             print('fetch page:'+str(page))
+            sys.stdout.flush()
             # get all posts and parse the single one
             post_auto_id_array = save_posts(
                 type, theme, result['id'], result['text'], result['attitudes_count'], result['comments_count'], result['reposts_count'], result['created_at'])
@@ -305,6 +333,14 @@ if __name__ == '__main__':
             try:
                 post_auto_id = post_auto_id_array[0]
             except Exception as e:
-                print('error get post_id'+str(post_auto_id_array),e.args)
+                print('error get post_id'+str(post_auto_id_array), e.args)
+                sys.stdout.flush()
             mid = result['id']
             processComments(mid, post_auto_id)
+
+
+if __name__ == '__main__':
+    theme_arr = ['']
+
+    for theme in theme_arr:
+        startSpider('保健品', theme, '9', '9')

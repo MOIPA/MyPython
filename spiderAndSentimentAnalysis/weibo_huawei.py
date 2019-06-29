@@ -11,6 +11,7 @@ import pymysql
 import json
 from urllib.parse import urlencode
 from pyquery import PyQuery as pq
+from sentiment_analysis import sentimentAnalysis
 
 path = '/home/william/OUTPUT.txt'
 search_opt = '=1&q='
@@ -28,7 +29,7 @@ header_comments = {
     'Host': host,
     'Referer': 'https://m.weibo.cn/u/2557129567?uid=2557129567&luicode=10000011&lfid=100103type%3D1%26q%3D%E5%8D%8E%E4%B8%BA',
     'User-Agent': user_agent,
-    'cookie' : 'ALF=1562915983; SUBP=0033WrSXqPxfM725Ws9jqgMF55529P9D9W51j6ZW4SdQaaqgiBzEr0vd5JpX5K-hUgL.Fo-feh.ce0npSKM2dJLoI7_SdcL7qCf09gLA9Btt; _T_WM=22405489250; SCF=Amf5eYkgZqkmzHuRaLDyI3LtU1BRJlQxgJXAqKJq6CJTXKcb-AzaPDytASmp-uYVwXrEnLUyC5UsTXeYrdWYt14.; SUB=_2A25wBNjKDeRhGeNL61sX8ybNzjuIHXVTBviCrDV6PUJbktAKLXjAkW1NSOYLTTJFW2aD7wWB5jJijzhexB9t2S_o; SUHB=0D-1moyhKF9s_v; WEIBOCN_FROM=1110006030; MLOGIN=1; XSRF-TOKEN=2185fd; M_WEIBOCN_PARAMS=luicode%3D10000011%26lfid%3D1005052557129567'
+    'cookie': 'ALF=1562915983; SUBP=0033WrSXqPxfM725Ws9jqgMF55529P9D9W51j6ZW4SdQaaqgiBzEr0vd5JpX5K-hUgL.Fo-feh.ce0npSKM2dJLoI7_SdcL7qCf09gLA9Btt; _T_WM=22405489250; SCF=Amf5eYkgZqkmzHuRaLDyI3LtU1BRJlQxgJXAqKJq6CJTXKcb-AzaPDytASmp-uYVwXrEnLUyC5UsTXeYrdWYt14.; SUB=_2A25wBNjKDeRhGeNL61sX8ybNzjuIHXVTBviCrDV6PUJbktAKLXjAkW1NSOYLTTJFW2aD7wWB5jJijzhexB9t2S_o; SUHB=0D-1moyhKF9s_v; WEIBOCN_FROM=1110006030; MLOGIN=1; XSRF-TOKEN=2185fd; M_WEIBOCN_PARAMS=luicode%3D10000011%26lfid%3D1005052557129567'
 }
 # 连接太多 需要关闭
 s = requests.session()
@@ -43,11 +44,13 @@ s.keep_alive = False
 # sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='gb18030')
 
 # 按页数抓取数据
+
+
 def get_posts_old(page):
     params = {
         'type': 'uid',
-        'value': 5561876124,
-        'containerid': 1076032557129567,
+        'value': 1642088277,
+        'containerid': 1076031642088277,
         'page': page
     }
     url = base_url_posts + urlencode(params)
@@ -57,18 +60,25 @@ def get_posts_old(page):
             return response.json()
     except requests.ConnectionError as e:
         print('抓取错误', e.args)
+        sys.stdout.flush()
 
 # 按页数搜索抓取数据
-def get_posts(page,topic):
-    url = base_url_posts + 'containerid=100103type'+urllib.parse.quote(search_opt+topic)+'&page='+str(page)
+
+
+def get_posts(page, topic):
+    url = base_url_posts + 'containerid=100103type' + \
+        urllib.parse.quote(search_opt+topic)+'&page='+str(page)
     try:
         response = requests.get(url, headers=header_posts)
         if response.status_code == 200:
             return response.json()
     except requests.ConnectionError as e:
         print('抓取错误', e.args)
+        sys.stdout.flush()
 
 # 解析页面返回的json数据
+
+
 def parse_single_post(json):
     items = json.get('data').get('cards')
     for item in items:
@@ -80,70 +90,92 @@ def parse_single_post(json):
                 'attitudes_count': item.get('attitudes_count'),
                 'comments_count': item.get('comments_count'),
                 'reposts_count': item.get('reposts_count'),
-                'created_at':item.get('created_at')
+                'created_at': item.get('created_at')
             }
             yield data
 
 # 定义一个类，将连接MySQL的操作写入其中
+
+
 class mysql_operation:
     def __init__(self):
         self.connect = pymysql.connect(
-            host = '39.108.159.175',
-            db = 'weibo_huawei',
-            port = 3306,
-            user = 'root',
-            passwd = '0800',
-            charset = 'utf8',
-            use_unicode = False
+            host='39.108.159.175',
+            db='weibo_huawei',
+            port=3306,
+            user='root',
+            passwd='0800',
+            charset='utf8',
+            use_unicode=False
         )
         self.cursor = self.connect.cursor()
     # 通过id查询auto_id(自增id)
-    def find_post_id(self,id):
+
+    def find_post_id(self, id):
         sql = "select auto_id from post where id = %s"
         try:
-            self.cursor.execute(sql,id)
+            self.cursor.execute(sql, id)
             return self.cursor.fetchall()
         except:
             print('auto_id查找失败')
+            sys.stdout.flush()
     # 保存数据到MySQL中
-    def save_posts(self,type,theme,id,text,attitudes_count,comments_count,reposts_count,created_at):
-        sql = "insert into post(type,theme,id,text,attitudes_count,comments_count,reposts_count,created_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)"
+
+    def save_posts(self, type, theme, id, text, attitudes_count, comments_count, reposts_count, created_at):
+        sql = "insert into post(type, theme, id, text, attitudes_count, comments_count, reposts_count, created_at, sentiment) VALUES ( % s, % s, % s, % s, % s, % s, % s, % s, % s)"
         try:
-            self.cursor.execute(sql,(type,theme,id,text,attitudes_count,comments_count,reposts_count,created_at))
+            self.cursor.execute(
+                sql, (type, theme, id, text, attitudes_count, comments_count,
+                      reposts_count, created_at, sentimentAnalysis(text)))
             self.connect.commit()
             print('post insert succeed')
+            sys.stdout.flush()
             return self.find_post_id(id)
         except:
             print('post insert failed')
-    def save_comments(self,post_auto_id,created_at,text,like_count,id,screen_name,profile_url,description,gender,followers_count):
-        sql = 'insert into comment(post_id,created_at,text,like_count,user_id,screen_name,profile_url,description,gender,followers_count) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)'
+            sys.stdout.flush()
+
+    def save_comments(self, post_auto_id, created_at, text, like_count, id,
+                      screen_name, profile_url, description, gender,
+                      followers_count):
+        sql = 'insert into comment(post_id, created_at, text, like_count, user_id, screen_name, profile_url, description, gender, followers_count, sentiment) VALUES (% s, % s, % s, % s, % s, % s, % s, % s, % s, % s, % s)'
         try:
-            self.cursor.execute(sql,(post_auto_id,created_at,text,like_count,id,screen_name,profile_url,description,gender,followers_count))
+            self.cursor.execute(sql, (post_auto_id, created_at, text, like_count,
+                                      id, screen_name, profile_url,
+                                      description, gender,
+                                      followers_count, sentimentAnalysis(text)))
             self.connect.commit()
             print('comment insert succeed')
+            sys.stdout.flush()
         except Exception as e:
-            print('comment insert failed',e.args)
-        
- 
+            print('comment insert failed', e.args)
+            sys.stdout.flush()
+
+
 # 新建对象，然后将数据传入类中
-def save_posts(type,theme,id,text,attitudes,comments,reposts,createTime):
+def save_posts(type, theme, id, text, attitudes, comments, reposts, createTime):
     down = mysql_operation()
-    return down.save_posts(type,theme,id,text,attitudes,comments,reposts,createTime)
+    return down.save_posts(type, theme, id, text, attitudes, comments, reposts, createTime)
 
 # 数据写入
-def writeData(data,path):
-    f = open(path,'w',encoding='utf-8')
+
+
+def writeData(data, path):
+    f = open(path, 'w', encoding='utf-8')
     f.write(data)
     f.close()
- 
-# 按页数抓取评论  
-def get_comments_by_page(mid,page):
+
+# 按页数抓取评论
+
+
+def get_comments_by_page(mid, page):
     params = {
-        'id' : mid,
+        'id': mid,
         'page': page
     }
     url = base_url_comments + urlencode(params)
     print(url)
+    sys.stdout.flush()
     try:
         response = requests.get(url, headers=header_comments)
         if response.status_code == 200:
@@ -151,8 +183,11 @@ def get_comments_by_page(mid,page):
             return response.json()
     except requests.ConnectionError as e:
         print('fetch error', e.args)
+        sys.stdout.flush()
 
 # 解析页面返回的json评论数据
+
+
 def parse_single_comment(json):
     items = json.get('data').get('data')
     for item in items:
@@ -160,58 +195,71 @@ def parse_single_comment(json):
             'created_at': item.get('created_at'),
             'text': pq(item.get("text")).text(),  # 仅提取内容中的文本
             'like_count': item.get('like_counts'),
-            'user_id':item.get('user').get('id'),
-            'user_name':item.get('user').get('screen_name'),
-            'user_profile':item.get('user').get('profile_url'),
-            'user_description':item.get('user').get('description'),
-            'user_gender':item.get('user').get('gender'),
-            'user_followers_count':item.get('user').get('followers_count'),
+            'user_id': item.get('user').get('id'),
+            'user_name': item.get('user').get('screen_name'),
+            'user_profile': item.get('user').get('profile_url'),
+            'user_description': item.get('user').get('description'),
+            'user_gender': item.get('user').get('gender'),
+            'user_followers_count': item.get('user').get('followers_count'),
         }
         yield data
 
-def save_comment(post_auto_id,created_at,text,like_count,id,screen_name,profile_url,description,gender,followers_count):
+
+def save_comment(post_auto_id, created_at, text, like_count, id, screen_name, profile_url, description, gender, followers_count):
     down = mysql_operation()
-    return down.save_comments(post_auto_id,created_at,text,like_count,id,screen_name,profile_url,description,gender,followers_count)
+    return down.save_comments(post_auto_id, created_at, text, like_count, id, screen_name, profile_url, description, gender, followers_count)
 
 # 处理每个帖子的评论 mid:博文id
-def processComments(mid,post_auto_id):
+
+
+def processComments(mid, post_auto_id):
     # get the first page json to get the number info
-    first_page_json = get_comments_by_page(mid,1)
+    first_page_json = get_comments_by_page(mid, 1)
     print(first_page_json)
-    max_page = first_page_json.get('data').get('max')
-    if max_page>100:
-        max_page=100
-    for i in range(1,max_page):
+    sys.stdout.flush()
+    try:
+        max_page = first_page_json.get('data').get('max')
+    except:
+        print('no comment')
+        sys.stdout.flush()
+        return
+    if max_page > 100:
+        max_page = 100
+    for i in range(1, max_page):
         time.sleep(1)
         try:
-            json_data = get_comments_by_page(mid,i)
+            json_data = get_comments_by_page(mid, i)
             results = parse_single_comment(json_data)
             # insert into db
             for result in results:
-                save_comment(post_auto_id,result['created_at'],result['text'],result['like_count'],result['user_id'],result['user_name'],result['user_profile'],result['user_description'],result['user_gender'],result['user_followers_count'])
+                save_comment(post_auto_id, result['created_at'], result['text'], result['like_count'], result['user_id'], result['user_name'],
+                             result['user_profile'], result['user_description'], result['user_gender'], result['user_followers_count'])
         except Exception as e:
-            print('get comments error',e.args)
+            print('get comments error', e.args)
+            sys.stdout.flush()
+
+
 # 执行
 if __name__ == '__main__':
-    if len(sys.argv)!=5:
-        print('args error')
-        exit()
-    type = sys.argv[1]
-    theme = sys.argv[2]
-    date = sys.argv[3]
-    module_id = sys.argv[4]
-    for page in range(1, 1000):   
-        jsonData = get_posts(page,theme+'+'+type)
-        # jsonData = get_posts_old(page)
+    # if len(sys.argv) != 5:
+    #     print('args error')
+    #     exit()
+    # type = sys.argv[1]
+    # theme = sys.argv[2]
+    # date = sys.argv[3]
+    # module_id = sys.argv[4]
+    for page in range(1, 1000):
+        # jsonData = get_posts(page,theme+'+'+type)
+        jsonData = get_posts_old(page)
         # writeData(json.dumps(jsonData,default=lambda o: o.__dict__, sort_keys=True, indent=4, ensure_ascii=False),path)
         results = parse_single_post(jsonData)
         for result in results:
             print('fetch page:'+str(page))
+            sys.stdout.flush()
             # get all posts and parse the single one
-            post_auto_id_array = save_posts(type,theme,result['id'],result['text'],result['attitudes_count'],result['comments_count'],result['reposts_count'],result['created_at'])
+            post_auto_id_array = save_posts('', '', result['id'], result['text'], result['attitudes_count'],
+                                            result['comments_count'], result['reposts_count'], result['created_at'])
             # prepare the material
             post_auto_id = post_auto_id_array[0]
             mid = result['id']
-            processComments(mid,post_auto_id)
-            
-
+            processComments(mid, post_auto_id)
