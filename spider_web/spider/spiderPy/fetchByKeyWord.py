@@ -84,6 +84,7 @@ def get_posts_old(page):
             return response.json()
     except requests.ConnectionError as e:
         print('抓取错误', e.args)
+        sys.stdout.flush()
 
 # 按页数搜索抓取数据
 
@@ -92,6 +93,7 @@ def get_posts(page, topic):
     url = base_url_posts + 'containerid=100103type' + \
         urllib.parse.quote(search_opt+topic)+'&page='+str(page)
     print('fetching post from url:'+url)
+    sys.stdout.flush()
     try:
         response = requests.get(url, headers=header_posts)
         if response.status_code == 200:
@@ -99,36 +101,45 @@ def get_posts(page, topic):
             return response.json()
     except requests.ConnectionError as e:
         print('抓取错误', e.args)
+        sys.stdout.flush()
 
 # 解析页面返回的json数据
 
 
 def parse_single_post(json_data):
+    global STOP
     if json_data == None:
         print('json none')
+        sys.stdout.flush()
         # exit()
-        global STOP
         STOP = True
+        return
     items = json_data.get('data').get('cards')
     for item in items:
         try:
             item = item.get('card_group')[0].get('mblog')
         except:
             print('no data searched in weibo')
+            sys.stdout.flush()
             # exit()
-            global STOP
             STOP = True
+            return
+        # try:
         if item:
             data = {
                 'id': item.get('id'),
-                'text': pq(item.get("text")).text(),  # 仅提取内容中的文本
+                'text': item.get('text'),  # 仅提取内容中的文本
                 'attitudes_count': item.get('attitudes_count'),
                 'comments_count': item.get('comments_count'),
                 'reposts_count': item.get('reposts_count'),
                 'created_at': item.get('created_at')
             }
             print(data)
+            sys.stdout.flush()
             yield data
+        # except:
+        #    print(item)
+        #    sys.stdout.flush()
 
 # 定义一个类，将连接MySQL的操作写入其中
 
@@ -156,6 +167,7 @@ class mysql_operation:
             self.cursor.execute(dropSql, (module_id, module_id))
         except:
             print('no table no drop')
+            sys.stdout.flush()
         try:
             self.cursor.execute(createCommentSql, module_id)
             self.cursor.execute(createPostSql, module_id)
@@ -163,6 +175,7 @@ class mysql_operation:
             # self.connect.close()
         except Exception as e:
             print('drop failed', e.args)
+            sys.stdout.flush()
 
     # 通过id查询auto_id(自增id)
     def find_post_id(self, id):
@@ -173,6 +186,7 @@ class mysql_operation:
             return self.cursor.fetchall()
         except:
             print('auto_id查找失败')
+            sys.stdout.flush()
     # 保存数据到MySQL中 且格式化时间+分析情感
 
     def save_posts(self, type, theme, id, text, attitudes_count, comments_count, reposts_count, created_at):
@@ -183,21 +197,25 @@ class mysql_operation:
                                       reposts_count, formatTime(created_at), MappingSentimentValue(text)))
             self.connect.commit()
             print('post insert succeed')
+            sys.stdout.flush()
             return self.find_post_id(id)
         except Exception as e:
             print('post insert failed', e.args)
+            sys.stdout.flush()
 
     def save_comments(self, post_auto_id, created_at, text, like_count, id, screen_name, profile_url, description, gender, followers_count):
         sql = 'insert into '+TableCommentName + \
             '(post_id,created_at,text,like_count,user_id,screen_name,profile_url,description,gender,followers_count,sentiment) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)'
         try:
             self.cursor.execute(sql, (post_auto_id, formatTime(created_at),
-                textFilter(text), like_count, id,
+                                      textFilter(text), like_count, id,
                                       screen_name, profile_url, description, gender, followers_count, MappingSentimentValue(text)))
             self.connect.commit()
             print('comment insert succeed')
+            sys.stdout.flush()
         except Exception as e:
             print('comment insert failed', e.args)
+            sys.stdout.flush()
 
 
 # 新建对象，然后将数据传入类中
@@ -230,6 +248,7 @@ def get_comments_by_page(mid, page):
     }
     url = base_url_comments + urlencode(params)
     print(url)
+    sys.stdout.flush()
     try:
         response = requests.get(url, headers=header_comments)
         if response.status_code == 200:
@@ -237,6 +256,7 @@ def get_comments_by_page(mid, page):
             return response.json()
     except requests.ConnectionError as e:
         print('fetch error', e.args)
+        sys.stdout.flush()
 
 # 解析页面返回的json评论数据
 
@@ -285,6 +305,7 @@ def processComments(mid, post_auto_id):
         max_page = first_page_json.get('data').get('max')
     except Exception as e:
         print('eror no comment fetched of '+mid, e.args)
+        sys.stdout.flush()
         return
 
     if max_page > 100:
@@ -300,9 +321,11 @@ def processComments(mid, post_auto_id):
                              result['user_profile'], result['user_description'], result['user_gender'], result['user_followers_count'])
         except Exception as e:
             print('get comments error', e.args)
+            sys.stdout.flush()
 
 
 def startSpider(t_type, t_theme, t_date, t_module_id, t_drop):
+    global STOP
     STOP = False
     TablePostPrefix = 'post_'
     TableCommentPrefix = 'comment_'
@@ -320,25 +343,26 @@ def startSpider(t_type, t_theme, t_date, t_module_id, t_drop):
     if int(t_drop) == 1:
         createTable(module_id)
     # start fetching
-    for page in range(1, 1000):
-        global STOP
+    for page in range(1, 3):
+        print('fetch page:'+str(page))
         if STOP:
-            return 
+            return
         jsonData = get_posts(page, theme+'+'+type)
         results = parse_single_post(jsonData)
         for result in results:
-            print('fetch page:'+str(page))
+            sys.stdout.flush()
             # get all posts and parse the single one
-            post_auto_id_array = save_posts(
-                type, theme, result['id'], result['text'], result['attitudes_count'], result['comments_count'], result['reposts_count'], result['created_at'])
-            # prepare the material
             try:
+                post_auto_id_array = save_posts(
+                    type, theme, result['id'], result['text'], result['attitudes_count'], result['comments_count'], result['reposts_count'], result['created_at'])
+            # prepare the material
                 post_auto_id = post_auto_id_array[0]
             except Exception as e:
-                print('error get post_id'+str(post_auto_id_array), e.args)
+                print('error insert into db ,post_id:'+str(post_auto_id_array), e.args)
+                sys.stdout.flush()
+                continue
             mid = result['id']
             processComments(mid, post_auto_id)
-
 
 if __name__ == '__main__':
     # startSpider()
