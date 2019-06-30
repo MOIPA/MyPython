@@ -3,6 +3,7 @@ import json
 from django.shortcuts import render
 from django.http import HttpResponse
 from spider.spiderPy.fetchByKeyWord import startSpider
+from spider.spiderPy.fetchByKeyWord import testThread
 import sys
 
 # Create your views here.
@@ -16,6 +17,7 @@ def thread(type, themeArray, date, model_id, drop):
     for theme in themeArray:
         print('spider start')
         startSpider(type, theme, date, model_id, drop)
+        #testThread()
         print('spider stop')
         sys.stdout.flush()
         drop = 0

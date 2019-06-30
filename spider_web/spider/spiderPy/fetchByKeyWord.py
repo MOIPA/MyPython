@@ -15,8 +15,8 @@ from urllib.parse import urlencode
 from pyquery import PyQuery as pq
 from spider.spiderPy.sentiment_analysis import sentimentAnalysis
 
-TablePostName = ''
-TableCommentName = ''
+#TablePostName = ''
+#TableCommentName = ''
 path = '/home/william/OUTPUT.txt'
 search_opt = '=1&q='
 host = 'm.weibo.cn'
@@ -30,7 +30,6 @@ DataBasePort = 3306
 DataBaseUser = 'root'
 DataBasePasswd = '0800'
 
-STOP = False
 
 # Head
 header_posts = {
@@ -107,13 +106,10 @@ def get_posts(page, topic):
 
 
 def parse_single_post(json_data):
-    global STOP
     if json_data == None:
         print('json none')
         sys.stdout.flush()
-        # exit()
-        STOP = True
-        return
+        return -1
     items = json_data.get('data').get('cards')
     for item in items:
         try:
@@ -121,9 +117,7 @@ def parse_single_post(json_data):
         except:
             print('no data searched in weibo')
             sys.stdout.flush()
-            # exit()
-            STOP = True
-            return
+            return -1
         # try:
         if item:
             data = {
@@ -178,8 +172,7 @@ class mysql_operation:
             sys.stdout.flush()
 
     # 通过id查询auto_id(自增id)
-    def find_post_id(self, id):
-        global TablePostName
+    def find_post_id(self, id, TablePostName):
         sql = "select auto_id from "+TablePostName+" where id = %s"
         try:
             self.cursor.execute(sql, id)
@@ -189,7 +182,8 @@ class mysql_operation:
             sys.stdout.flush()
     # 保存数据到MySQL中 且格式化时间+分析情感
 
-    def save_posts(self, type, theme, id, text, attitudes_count, comments_count, reposts_count, created_at):
+    def save_posts(self, type, theme, id, text, attitudes_count,
+                   comments_count, reposts_count, created_at, TablePostName):
         sql = "insert into "+TablePostName + \
             "(type,theme,id,text,attitudes_count,comments_count,reposts_count,created_at,sentiment) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)"
         try:
@@ -198,12 +192,13 @@ class mysql_operation:
             self.connect.commit()
             print('post insert succeed')
             sys.stdout.flush()
-            return self.find_post_id(id)
+            return self.find_post_id(id, TablePostName)
         except Exception as e:
             print('post insert failed', e.args)
             sys.stdout.flush()
 
-    def save_comments(self, post_auto_id, created_at, text, like_count, id, screen_name, profile_url, description, gender, followers_count):
+    def save_comments(self, post_auto_id, created_at, text, like_count, id,
+                      screen_name, profile_url, description, gender, followers_count, TableCommentName):
         sql = 'insert into '+TableCommentName + \
             '(post_id,created_at,text,like_count,user_id,screen_name,profile_url,description,gender,followers_count,sentiment) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)'
         try:
@@ -219,9 +214,16 @@ class mysql_operation:
 
 
 # 新建对象，然后将数据传入类中
-def save_posts(type, theme, id, text, attitudes, comments, reposts, createTime):
+def save_posts_service(type, theme,result, TablePostName):
+#def save_posts(type, theme, id, text, attitudes, comments, reposts,
+#               createTime, TablePostName):
     down = mysql_operation()
-    return down.save_posts(type, theme, id, text, attitudes, comments, reposts, createTime)
+                #post_auto_id_array = save_posts(
+                #    type, theme,  result['text'],
+                #    result['attitudes_count'], result['comments_count'],
+                #    result['reposts_count'], result['created_at'], TablePostName)
+    return down.save_posts(type, theme, result['id'], result['text'], result['attitudes_count'], result['comments_count'], result['reposts_count'],
+                           result['created_at'], TablePostName)
 
 # create table
 
@@ -261,8 +263,8 @@ def get_comments_by_page(mid, page):
 # 解析页面返回的json评论数据
 
 
-def parse_single_comment(json):
-    items = json.get('data').get('data')
+def parse_single_comment(json_data):
+    items = json_data.get('data').get('data')
     for item in items:
         data = {
             'created_at': item.get('created_at'),
@@ -278,9 +280,10 @@ def parse_single_comment(json):
         yield data
 
 
-def save_comment(post_auto_id, created_at, text, like_count, id, screen_name, profile_url, description, gender, followers_count):
+def save_comment_service(post_auto_id, result, TableCommentName):
     down = mysql_operation()
-    return down.save_comments(post_auto_id, created_at, text, like_count, id, screen_name, profile_url, description, gender, followers_count)
+    return down.save_comments(post_auto_id, result['created_at'], result['text'], result['like_count'], result['user_id'], result['user_name'],
+                             result['user_profile'], result['user_description'], result['user_gender'], result['user_followers_count'], TableCommentName)
 
 
 def formatTime(text):
@@ -298,7 +301,7 @@ def formatTime(text):
 
 
 # 处理每个帖子的评论 mid:博文id
-def processComments(mid, post_auto_id):
+def processComments(mid, post_auto_id, TableCommentName):
     # get the first page json to get the number info
     first_page_json = get_comments_by_page(mid, 1)
     try:
@@ -317,52 +320,57 @@ def processComments(mid, post_auto_id):
             results = parse_single_comment(json_data)
             # insert into db
             for result in results:
-                save_comment(post_auto_id, result['created_at'], result['text'], result['like_count'], result['user_id'], result['user_name'],
-                             result['user_profile'], result['user_description'], result['user_gender'], result['user_followers_count'])
+                save_comment_service(post_auto_id, result, TableCommentName)
         except Exception as e:
             print('get comments error', e.args)
             sys.stdout.flush()
 
 
 def startSpider(t_type, t_theme, t_date, t_module_id, t_drop):
-    global STOP
-    STOP = False
-    TablePostPrefix = 'post_'
-    TableCommentPrefix = 'comment_'
     type = t_type
     theme = t_theme
     date = t_date
     module_id = t_module_id
 
-    global TablePostName
-    global TableCommentName
-
-    TablePostName = TablePostPrefix+str(module_id)
-    TableCommentName = TableCommentPrefix+str(module_id)
+    TablePostName = 'post_'+str(module_id)
+    TableCommentName = 'comment_'+str(module_id)
     # create table by mid
     if int(t_drop) == 1:
         createTable(module_id)
     # start fetching
-    for page in range(1, 3):
-        print('fetch page:'+str(page))
-        if STOP:
-            return
+    for page in range(1, 1000):
+        print('fetching page:'+str(page))
+        sys.stdout.flush()
         jsonData = get_posts(page, theme+'+'+type)
         results = parse_single_post(jsonData)
+        # no data anymore exit the program
+        if results == -1:
+            return
+
         for result in results:
             sys.stdout.flush()
             # get all posts and parse the single one
             try:
-                post_auto_id_array = save_posts(
-                    type, theme, result['id'], result['text'], result['attitudes_count'], result['comments_count'], result['reposts_count'], result['created_at'])
-            # prepare the material
+                post_auto_id_array = save_posts_service(type,theme,result,TablePostName)
                 post_auto_id = post_auto_id_array[0]
             except Exception as e:
-                print('error insert into db ,post_id:'+str(post_auto_id_array), e.args)
+                print('error insert into db ,post_id:' +
+                      str(post_auto_id_array), e.args)
                 sys.stdout.flush()
                 continue
             mid = result['id']
-            processComments(mid, post_auto_id)
+            processComments(mid, post_auto_id, TableCommentName)
+
+
+counter = 1
+
+
+def testThread():
+    global counter
+    print('counter :'+str(counter))
+    counter += 1
+    sys.stdout.flush()
+
 
 if __name__ == '__main__':
     # startSpider()
