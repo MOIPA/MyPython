@@ -1,9 +1,11 @@
 # -*- coding: UTF-8 -*-
 import pymysql
-from snownlp import SnowNLP
 import io
 import sys
 import datetime
+from snownlp import SnowNLP
+from aip import AipNlp
+
 # 改变标准输出的默认编码
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf8')
 
@@ -34,7 +36,7 @@ class MysqlOperation:
                 yield row
 
         except Exception as e:
-            print('query data error'+e.args)
+            print('query data error', e.args)
 
     def insertIdAndSentiment(self, comment_id, sentiment):
         sql = 'update comment set sentiment=%s where comment_id=%s'
@@ -98,7 +100,7 @@ def processTextAndAnalysis():
 
 
 def sentimentAnalysis(text):
-    #pre = datetime.datetime.now()
+    # pre = datetime.datetime.now()
     if text == '' or not text:
         return 0
     textArray = SnowNLP(text)
@@ -106,9 +108,27 @@ def sentimentAnalysis(text):
     for s in textArray.sentences:
         result += SnowNLP(s).sentiments
         # print(s+' sentiment value：'+str(SnowNLP(s).sentiments))
-    #now = datetime.datetime.now()
+    # now = datetime.datetime.now()
     # print(now-pre)
     return result/len(textArray.sentences) if len(textArray.sentences) != 0 else 0
+
+
+def sentimentAnalysisViaBaidu(text):
+    # do analysis by baidu SDK
+    APP_ID = '16685157'
+    API_KEY = '0PQt2RjUAtNYZr8KA7cIWKue'
+    SECRET_KEY = 'RnKHaVAM0gkV6kk6G12nPhTe2ny8QQah'
+    client = AipNlp(APP_ID, API_KEY, SECRET_KEY)
+    # the value need
+
+    out = client.sentimentClassify(text).get('items')[0]
+    positive_posibility = out.get('positive_prob')
+    confidence = out.get('confidence')
+    negative_posibility = out.get('negative_prob')
+    sentimentValue = out.get('sentiment')
+
+    # -1:negative 1:positive 0:neutral
+    return{'sentiment_absolute': (sentimentValue-1),'positive_posibility': positive_posibility, 'negative_posibility': negative_posibility, 'confidence': confidence}
 
 
 if __name__ == '__main__':

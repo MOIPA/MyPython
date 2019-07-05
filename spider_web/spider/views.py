@@ -1,10 +1,10 @@
 import threading
+import sys
 import json
 from django.shortcuts import render
 from django.http import HttpResponse
 from spider.spiderPy.fetchByKeyWord import startSpider
 from spider.spiderPy.fetchByKeyWord import testThread
-import sys
 
 # Create your views here.
 
