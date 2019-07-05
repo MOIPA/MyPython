@@ -260,13 +260,7 @@ class mysql_operation:
 
 # 新建对象，然后将数据传入类中
 def save_posts_service(type, theme, result, TablePostName):
-    # def save_posts(type, theme, id, text, attitudes, comments, reposts,
-    #               createTime, TablePostName):
     down = mysql_operation()
-    # post_auto_id_array = save_posts(
-    #    type, theme,  result['text'],
-    #    result['attitudes_count'], result['comments_count'],
-    #    result['reposts_count'], result['created_at'], TablePostName)
     return down.save_posts(type, theme, result['id'], result['text'], result['attitudes_count'], result['comments_count'], result['reposts_count'], result['created_at'], TablePostName)
 
 # create table
