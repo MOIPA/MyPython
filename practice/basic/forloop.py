@@ -10,3 +10,6 @@ for i in [x*2 for x in range(10)]:
 
 f = [x + y for x in 'ABCDE' for y in '1234567']
 print(f)
+
+for x,y in [(1,1),(2,4)]:
+    print(x,y)

@@ -5,13 +5,16 @@ import sys
 import time
 
 
-def thread(self, input):
-    for i in range(10):
+def thread(input,thread_id):
+    for i in range(6):
+        tp = ThreadPool()
+        self_timer = tp.pool.get(thread_id)
+        if self_timer==-1:
+            exit()
         print('hello+'+str(input))
-        time.sleep(2)
-        if i == 4:
+        time.sleep(1)
+        if i == 2:
             print('stop')
-            self.stop()
 
 
 def change(input):
@@ -36,7 +39,6 @@ class StoppableThread(threading.Thread):
         self.__running = threading.Event()      # 用于停止线程的标识
         self.__running.set()      # 将running设置为True
 
-
     def pause(self):
         self.__flag.clear()     # 设置为False, 让线程阻塞
 
@@ -47,7 +49,6 @@ class StoppableThread(threading.Thread):
         self.__flag.set()       # 将线程从暂停状态恢复, 如何已经暂停的话
         self.__running.clear()        # 设置为False
 
-
     def run(self):
         print('hello')
         self.stop()
@@ -55,7 +56,9 @@ class StoppableThread(threading.Thread):
         #thread(self, input)
 
 #st = StoppableThread()
-#st.start()
+# st.start()
+
+
 def judgeTime(post_date, days_ago):
     constraint_date = (datetime.datetime.now() +
                        datetime.timedelta(days=-days_ago)).strftime("%Y-%m-%d")
@@ -78,4 +81,37 @@ def judgeTime(post_date, days_ago):
     except:
         print('process time error')
     return False
-print(judgeTime('2019-06-01',10))
+# print(judgeTime('2019-06-01',10))
+
+
+class ThreadPool(object):
+    _pool = {}
+
+    @property
+    def pool(self):
+        return ThreadPool._pool
+
+    @pool.setter
+    def pool(self, pool):
+        ThreadPool._pool = pool
+
+
+# 线程池管理测试
+thread_count=0
+
+tp = ThreadPool()
+# first
+timer = threading.Timer(1, thread, [1,thread_count])
+tp.pool[thread_count]=timer
+thread_count+=1
+# another
+timer_2 = threading.Timer(1, thread, [2,thread_count])
+tp.pool[thread_count]=timer_2
+thread_count+=1
+
+print(tp.pool)
+timer.start()
+timer_2.start()
+# close one thread
+time.sleep(4)
+tp.pool[0]=-1

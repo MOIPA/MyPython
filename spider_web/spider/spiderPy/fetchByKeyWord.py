@@ -392,7 +392,7 @@ def processComments(mid, post_auto_id, TableCommentName):
             sys.stdout.flush()
 
 
-def startSpider(t_type, t_theme, t_days_ago, t_module_id, t_drop):
+def startSpider(t_type, t_theme, t_days_ago, t_module_id, t_drop, thread_id, pool):
     type = t_type
     theme = t_theme
     # date could be 0,1,2,3 if date is -1 means no date constraint
@@ -406,6 +406,9 @@ def startSpider(t_type, t_theme, t_days_ago, t_module_id, t_drop):
         createTable(module_id)
     # start fetching
     for page in range(1, 1000):
+        # thread manage
+        if pool.pool[thread_id] == -1:
+            exit()
         print('fetching page:'+str(page))
         sys.stdout.flush()
         jsonData = get_posts(page, theme+'+'+type)
@@ -420,7 +423,7 @@ def startSpider(t_type, t_theme, t_days_ago, t_module_id, t_drop):
             try:
                 result['created_at'] = formatTime(result['created_at'])
                 sys.stdout.flush()
-                if not judgeTime(result['created_at'],days_ago):
+                if not judgeTime(result['created_at'], days_ago):
                     continue
                 post_auto_id_array = save_posts_service(
                     type, theme, result, TablePostName)
