@@ -1,5 +1,7 @@
 d = {'name': 'tr', 'age': 18}
 print(d['name'])
+for key in d:
+    print(key)
 
 # delete
 d.pop('name')
