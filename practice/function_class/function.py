@@ -1,4 +1,10 @@
+'''
+    方法的参数问题：变长参数
+'''
 # default arguments
+import types
+
+
 def student(name, age, city='none', sex='m'):
     pass
 
@@ -68,28 +74,34 @@ def add_end_new(L=None):
 # 现在，无论调用多少次，都不会有问题：
 
 # 可变参数调用ｃａｌｃ( *nums) ****************************
+
+
 def calc(*num):
     for i in num:
         print("%d" % i)
-        
+
+
 # calc(0,1)
 # 如果这时候是一个list怎么办
 nums = [0, 1, 2, 3]
 calc(*nums)
 
- # 关键字参数××××××××××××××××××××××××××××××××××××××
- # 可变参数允许你传入0个或任意个参数，这些可变参数在函数调用时自动组装为一个tuple。而关键字参数允许你传入0个或任意个含参数名的参数，这些关键字参数在函数内部自动组装为一个dict。
-def person(name,age,**kwargs):
-        print ('name',name,'age',age,'kw',kwargs)
+# 关键字参数××××××××××××××××××××××××××××××××××××××
+# 可变参数允许你传入0个或任意个参数，这些可变参数在函数调用时自动组装为一个tuple。而关键字参数允许你传入0个或任意个含参数名的参数，这些关键字参数在函数内部自动组装为一个dict。
+
+
+def person(name, age, **kwargs):
+    print('name', name, 'age', age, 'kw', kwargs)
+
 
 # person('mic',18)
 # 这时候瞎传一些参数也可以,但是瞎传的参数要带上关键字，不然咋叫关键字参数
 # 这些参数带关键字，那么肯定可以传入dict参数
-person('mic',18,sis=18,nickname='gg')
+person('mic', 18, sis=18, nickname='gg')
 
 # dict参数传入，但是参数前要使用**
-kw={'kw1':1,'kw2':'2'}
-person('tr',18,**kw)
+kw = {'kw1': 1, 'kw2': '2'}
+person('tr', 18, **kw)
 
 
 # ******************************
@@ -118,3 +130,17 @@ a = 1 b = 2 c = 3 args = ('a', 'b') kw = {'x': 99}
 >> > func(*args, **kw)
 a = 1 b = 2 c = 3 args = (4,) kw = {'x': 99}
 # 所以，对于任意函数，都可以通过类似func(*args, **kw)的形式调用它，无论它的参数是如何定义的。
+
+'''
+    type 关键字
+'''
+type('123') = types.StringType
+type([]) = types.ListType
+
+'''
+    dir 函数查看所有属性
+    hasattr 函数 查看是否有某个属性
+'''
+info = dir('acd')
+hasattr('acd','upper')
+
