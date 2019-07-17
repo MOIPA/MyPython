@@ -1,5 +1,6 @@
 # *******************************************8 文件读写
 try:
+import json
 import os
 import codecs
 f = open('/home/william/Documents/mysql_save.py', 'r')
@@ -86,7 +87,47 @@ try:
     import cPickle as pickle
 except ImportError:
     import pickle
-d = dict(name='tr',age=18)
-pickle.dumps(d)
-print(pickle)
+d = dict(name='tr', age=18)
+result = pickle.dumps(d)
+print(result)
 # 可以将这个str存入本地文件
+
+# 打开序列化
+l_d = pickle.load(result)
+
+
+# 序列化还有一个是json
+# json.dumps()
+# json序列化类 由于类不可以被序列化，只能序列化dict，可以写一个转化函数
+
+
+def student(object):
+    def __init__(self, name, age, score):
+        self.name = name
+        self.age. = age
+        self.score = score
+
+
+def student2dict(std):
+    return{
+        'name': std.name,
+        'age': std.age,
+        'score': std.score
+    }
+
+
+s = student('tr', 11, 11)
+print(json.dumps(s, default=student2dict))
+
+# 但是写函数比较麻烦，可以使用lambda 每个类都有dict属性，
+print(json.dumps(s, default=lambda obj: obj.__dict__))
+
+# json转为类对象 需要写转换函数
+
+
+def dict2student(d):
+    return Student(d['name'], d['age'], d['score'])
+
+
+json_str = '{"age": 20, "score": 88, "name": "Bob"}'
+s = json.loads(json_str, object_hook=dict2student)
